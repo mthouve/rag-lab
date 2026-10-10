@@ -1,0 +1,9 @@
+PostgreSQL and vector search notes
+
+pgvector adds a vector type and similarity operators to PostgreSQL. Cosine distance is written as <=>. RAG Lab reports cosine similarity as one minus cosine distance; this score is not a probability of answer correctness.
+
+Npgsql provides asynchronous PostgreSQL connections and connection pooling. Dapper maps explicit SQL query results into C# records. PostgreSQL transactions atomically publish replacement chunks and document metadata.
+
+For a small personal corpus, exact vector search is simple and provides full recall. Approximate HNSW indexes can improve large-corpus latency but add memory, maintenance, and recall tradeoffs. RAG Lab Stage 1 uses exact search and does not create an HNSW index.
+
+Embedding model identity matters as much as vector dimensions. Vectors from different models should not be mixed even if they have the same length. Changing the embedding model requires a separate index or a planned migration and full reindex.

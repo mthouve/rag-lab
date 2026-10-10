@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RAG Lab — Ask your documents</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <style>
+      :root {
+        --background: #f3f6fa;
+        --surface: #ffffff;
+        --text: #182739;
+        --muted: #52677e;
+        --border: #dbe3ed;
+        --accent: #215f9b;
+        --accent-hover: #174b7d;
+        --error: #9d2831;
+        --radius: 12px;
+        --space: 8px;
+        --reading-width: 960px;
+        font-family: system-ui, sans-serif;
+        color: var(--text);
+        background: var(--background);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+      }
+      header, main {
+        width: min(var(--reading-width), 100%);
+        margin-inline: auto;
+        padding-inline: calc(var(--space) * 3);
+      }
+      header {
+        padding-block: calc(var(--space) * 5) calc(var(--space) * 3);
+      }
+      main {
+        padding-bottom: calc(var(--space) * 6);
+      }
+      h1 {
+        margin: 0;
+        font-size: 2rem;
+        letter-spacing: -0.04em;
+      }
+      h2 {
+        margin: 0 0 calc(var(--space) * 2);
+        font-size: 1.25rem;
+      }
+      h3 {
+        margin: 0 0 var(--space);
+        font-size: 1rem;
+      }
+      p {
+        line-height: 1.65;
+        margin-block: var(--space) calc(var(--space) * 2);
+      }
+      .subtitle, .help, .metadata {
+        color: var(--muted);
+      }
+      .subtitle {
+        margin-bottom: 0;
+      }
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: calc(var(--space) * 3);
+        margin-bottom: calc(var(--space) * 3);
+      }
+      label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: var(--space);
+      }
+      input, textarea {
+        width: 100%;
+        padding: calc(var(--space) * 1.5);
+        border: 1px solid #8497ad;
+        border-radius: calc(var(--radius) / 2);
+        font: inherit;
+        color: var(--text);
+        background: var(--surface);
+      }
+      textarea {
+        resize: vertical;
+        min-height: 110px;
+      }
+      .help {
+        font-size: 0.9rem;
+        margin-top: var(--space);
+      }
+      button {
+        border: 0;
+        border-radius: calc(var(--radius) / 2);
+        background: var(--accent);
+        color: white;
+        font: inherit;
+        font-weight: 600;
+        padding: calc(var(--space) * 1.5) calc(var(--space) * 2.5);
+        cursor: pointer;
+      }
+      button:hover:not(:disabled) {
+        background: var(--accent-hover);
+      }
+      button:disabled {
+        background: #566b80;
+        cursor: wait;
+      }
+      :focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 3px;
+      }
+      [aria-invalid="true"] {
+        border-color: var(--error);
+      }
+      .status {
+        color: var(--muted);
+        margin-bottom: 0;
+      }
+      .status[data-state="error"] {
+        color: var(--error);
+      }
+      .status:empty {
+        display: none;
+      }
+      .result {
+        margin-top: calc(var(--space) * 3);
+        border-top: 1px solid var(--border);
+        padding-top: calc(var(--space) * 3);
+      }
+      .answer, .passage-text {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      .citation-list, .document-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .passage, .document-row {
+        padding-block: calc(var(--space) * 2);
+        border-top: 1px solid var(--border);
+      }
+      .source-name {
+        display: block;
+        font-weight: 600;
+        overflow-wrap: anywhere;
+      }
+      .metadata {
+        font-size: 0.9rem;
+        margin-bottom: 0;
+        overflow-wrap: anywhere;
+      }
+      details {
+        margin-top: calc(var(--space) * 3);
+      }
+      summary {
+        cursor: pointer;
+        font-weight: 600;
+        padding-block: var(--space);
+      }
+      .index-controls {
+        margin-top: calc(var(--space) * 2);
+      }
+      [hidden] {
+        display: none !important;
+      }
+      @media (max-width: 560px) {
+        header, main {
+          padding-inline: calc(var(--space) * 2);
+        }
+        header {
+          padding-top: calc(var(--space) * 3);
+        }
+        .panel {
+          padding: calc(var(--space) * 2);
+        }
+        button {
+          width: 100%;
+        }
+      }
+    
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>RAG Lab</h1>
+      <p class="subtitle">Ask your technical notes. Trace the answer to its sources.</p>
+    </header>
+    <main>
+      <section class="panel" aria-labelledby="questionHeading">
+        <h2 id="questionHeading">Ask your documents</h2>
+        <form id="questionForm">
+          <label for="question">Your question</label>
+          <textarea
+            id="question"
+            rows="3"
+            maxlength="2000"
+            aria-describedby="questionHelp questionStatus"
+            placeholder="What brace style do the C# coding standards require?"
+            required
+          ></textarea>
+          <p id="questionHelp" class="help">Answers use the indexed documents and include supporting passages.</p>
+          <button id="questionButton" type="submit">Ask documents</button>
+        </form>
+        <p id="questionStatus" class="status" role="status"></p>
+        <div id="result" class="result" hidden>
+          <h3 id="answerHeading">Answer</h3>
+          <p id="answer" class="answer"></p>
+          <section id="sourceSection" aria-labelledby="sourceHeading" hidden>
+            <h3 id="sourceHeading">Supporting sources</h3>
+            <ul id="citations" class="citation-list"></ul>
+          </section>
+          <details id="diagnostics">
+            <summary>Retrieval diagnostics</summary>
+            <p class="help">Similarity measures passage relevance, not confidence that an answer is correct.</p>
+            <ul id="retrieved" class="citation-list"></ul>
+          </details>
+        </div>
+      </section>
+      <section class="panel" aria-labelledby="documentHeading">
+        <h2 id="documentHeading">Your knowledge library</h2>
+        <p class="help">Review indexed documents or select a file to add or update.</p>
+        <details>
+          <summary id="documentSummary">Indexed documents</summary>
+          <p id="documentStatus" class="status" role="status"></p>
+          <ul id="documents" class="document-list"></ul>
+          <button id="refreshButton" type="button">Refresh documents</button>
+        </details>
+        <details>
+          <summary>Index a document</summary>
+          <form id="indexForm" class="index-controls">
+            <label for="documentPath">Document path</label>
+            <input
+              id="documentPath"
+              value="sample-documents/rag-overview.md"
+              aria-describedby="pathHelp indexStatus"
+              required
+            >
+            <p id="pathHelp" class="help">Select a relative .md or .txt path inside the configured document folder.</p>
+            <button id="indexButton" type="submit">Index document</button>
+          </form>
+          <p id="indexStatus" class="status" role="status"></p>
+        </details>
+      </section>
+    </main>
+    <script>
+      const elements = Object.fromEntries(
+        Array.from(document.querySelectorAll("[id]"), element => [element.id, element])
+      );
+
+      function setStatus(element, message, state = "ready") {
+        element.textContent = message;
+        element.dataset.state = state;
+      }
+
+      async function requestJson(path, body) {
+        const response = await fetch(path, body === undefined ? {} : {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        let data;
+        try {
+          data = await response.json();
+        } catch {
+          throw new Error(`The server returned an unreadable response (${response.status}). Please retry.`);
+        }
+        if (!response.ok) {
+          throw new Error(data?.title || `Request failed (${response.status}). Please retry.`);
+        }
+        return data;
+      }
+
+      function validatePassages(passages) {
+        return Array.isArray(passages) && passages.every(passage =>
+          passage && Number.isInteger(passage.id) && typeof passage.sourceLocation === "string" &&
+          typeof passage.text === "string" && Number.isFinite(passage.score) &&
+          Number.isInteger(passage.chunkOrdinal)
+        );
+      }
+
+      function renderPassages(target, passages, showDiagnostics = false) {
+        target.replaceChildren();
+        for (const passage of passages) {
+          const item = document.createElement("li");
+          item.className = "passage";
+          const name = document.createElement("span");
+          name.className = "source-name";
+          name.textContent = `[${passage.id}] ${passage.sourceLocation}`;
+          const text = document.createElement("p");
+          text.className = "passage-text";
+          text.textContent = passage.text;
+          item.append(name, text);
+          if (showDiagnostics) {
+            const metadata = document.createElement("p");
+            metadata.className = "metadata";
+            metadata.textContent = `Chunk ${passage.chunkOrdinal} · cosine similarity ${passage.score.toFixed(3)}`;
+            item.append(metadata);
+          }
+          target.append(item);
+        }
+        if (passages.length === 0) {
+          const item = document.createElement("li");
+          item.className = "help";
+          item.textContent = "No passages met the retrieval threshold.";
+          target.append(item);
+        }
+      }
+
+      async function loadDocuments() {
+        elements.refreshButton.disabled = true;
+        setStatus(elements.documentStatus, "Loading documents…");
+        try {
+          const documents = await requestJson("/api/documents");
+          if (!Array.isArray(documents) || !documents.every(document =>
+            document && typeof document.sourceLocation === "string" &&
+            typeof document.status === "string" && Number.isInteger(document.chunkCount)
+          )) {
+            throw new Error("The server returned an unexpected document list. Please retry.");
+          }
+          elements.documents.replaceChildren();
+          for (const document of documents) {
+            const item = window.document.createElement("li");
+            item.className = "document-row";
+            const name = window.document.createElement("span");
+            name.className = "source-name";
+            name.textContent = document.sourceLocation;
+            const metadata = window.document.createElement("p");
+            metadata.className = "metadata";
+            metadata.textContent = `${document.status} · ${document.chunkCount} chunks`;
+            if (document.status === "failed") {
+              metadata.textContent += document.lastIndexedAt
+                ? " · Previous successfully indexed version remains available."
+                : " · No successfully indexed version is available.";
+            }
+            if (document.lastError) {
+              metadata.textContent += ` ${document.lastError}`;
+            }
+            item.append(name, metadata);
+            elements.documents.append(item);
+          }
+          elements.documentSummary.textContent = `Indexed documents (${documents.length})`;
+          setStatus(elements.documentStatus, documents.length ? "" : "No indexed documents yet. Select a file below.");
+        } catch (error) {
+          setStatus(elements.documentStatus, error.message, "error");
+        } finally {
+          elements.refreshButton.disabled = false;
+        }
+      }
+
+      async function handleQuestionSubmit(event) {
+        event.preventDefault();
+        const question = elements.question.value.trim();
+        if (!question) {
+          elements.question.setAttribute("aria-invalid", "true");
+          setStatus(elements.questionStatus, "Enter a question before submitting.", "error");
+          return;
+        }
+        elements.question.removeAttribute("aria-invalid");
+        elements.questionButton.disabled = true;
+        elements.questionButton.textContent = "Searching…";
+        elements.result.hidden = true;
+        setStatus(elements.questionStatus, "Searching documents and generating an answer…");
+        try {
+          const result = await requestJson("/api/ask", { question });
+          if (!result || typeof result.answer !== "string" || typeof result.insufficientContext !== "boolean" ||
+              !validatePassages(result.citations) || !validatePassages(result.retrieved)) {
+            throw new Error("The server returned an unexpected answer. Please retry.");
+          }
+          elements.answerHeading.textContent = result.insufficientContext ? "Insufficient information" : "Answer";
+          elements.answer.textContent = result.answer;
+          renderPassages(elements.citations, result.citations);
+          renderPassages(elements.retrieved, result.retrieved, true);
+          elements.sourceSection.hidden = result.citations.length === 0;
+          elements.diagnostics.open = false;
+          elements.result.hidden = false;
+          setStatus(elements.questionStatus, result.insufficientContext
+            ? "The indexed documents do not provide enough supporting evidence."
+            : `Answer ready with ${result.citations.length} supporting source passages.`);
+        } catch (error) {
+          setStatus(elements.questionStatus, error.message, "error");
+        } finally {
+          elements.questionButton.disabled = false;
+          elements.questionButton.textContent = "Ask documents";
+        }
+      }
+
+      async function handleIndexSubmit(event) {
+        event.preventDefault();
+        const path = elements.documentPath.value.trim();
+        if (!path) {
+          elements.documentPath.setAttribute("aria-invalid", "true");
+          setStatus(elements.indexStatus, "Enter a document path before submitting.", "error");
+          return;
+        }
+        elements.documentPath.removeAttribute("aria-invalid");
+        elements.indexButton.disabled = true;
+        elements.indexButton.textContent = "Indexing…";
+        setStatus(elements.indexStatus, "Reading the document and preparing its searchable passages…");
+        try {
+          const result = await requestJson("/api/documents/index", { path });
+          if (!result || typeof result.filename !== "string" || !["indexed", "unchanged"].includes(result.status) ||
+              !Number.isInteger(result.chunkCount)) {
+            throw new Error("The server returned an unexpected indexing result. Please refresh the document list.");
+          }
+          setStatus(elements.indexStatus, result.status === "unchanged"
+            ? `${result.filename} is unchanged. Its existing index was reused.`
+            : `${result.filename} indexed with ${result.chunkCount} chunks.`);
+          await loadDocuments();
+        } catch (error) {
+          setStatus(elements.indexStatus, error.message, "error");
+        } finally {
+          elements.indexButton.disabled = false;
+          elements.indexButton.textContent = "Index document";
+        }
+      }
+
+      elements.questionForm.addEventListener("submit", handleQuestionSubmit);
+      elements.indexForm.addEventListener("submit", handleIndexSubmit);
+      elements.refreshButton.addEventListener("click", loadDocuments);
+      loadDocuments();
+    </script>
+  </body>
+</html>

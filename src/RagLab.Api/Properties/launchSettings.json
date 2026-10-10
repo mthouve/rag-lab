@@ -1,0 +1,14 @@
+{
+  "profiles": {
+    "RagLab": {
+      "commandName": "Project",
+      "launchBrowser": false,
+      "applicationUrl": "http://127.0.0.1:5080",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DOTNET_ENVIRONMENT": "Development",
+        "LocalDevelopment__UseComposeCredentials": "true"
+      }
+    }
+  }
+}

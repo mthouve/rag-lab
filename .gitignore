@@ -399,3 +399,11 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# RAG Lab local configuration and tooling
+.env
+.env.*
+!.env.example
+.tools/
+appsettings.Local.json
+.local.runsettings
